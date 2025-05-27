@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <title>Classifica Dinamica Serie A</title>
+  <style>
+    /* Stile moderno e pulito */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      max-width: 960px;
+      margin: 30px auto;
+      padding: 20px;
+      color: #222;
+    }
+
+    h1, h2 {
+      color: #1a73e8;
+      margin-bottom: 15px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 8px rgb(26 115 232 / 0.1);
+      margin-bottom: 25px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: center;
+      padding: 12px 10px;
+      border-bottom: 1px solid #eee;
+      user-select: none;
+    }
+
+    th {
+      background-color: #1a73e8;
+      color: white;
+      font-weight: 600;
+    }
+
+    tbody tr:hover {
+      background-color: #f5f8ff;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    td.editable {
+      cursor: pointer;
+      background-color: #e8f0fe;
+      transition: background-color 0.2s;
+    }
+
+    td.editable:focus {
+      outline: none;
+      background-color: #d2e3fc;
+    }
+
+    form {
+      display: none;
+      margin-bottom: 30px;
+      background: white;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgb(26 115 232 / 0.1);
+      border-radius: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 15px;
+      align-items: center;
+    }
+
+    form input, form button {
+      font-size: 1rem;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      transition: border-color 0.3s;
+    }
+
+    form input:focus {
+      border-color: #1a73e8;
+      outline: none;
+    }
+
+    form button {
+      background-color: #1a73e8;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    form button:hover {
+      background-color: #155ab6;
+    }
+
+    #btn-container {
+      display: flex;
+      justify-content: flex-end;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+
+    button#edit-btn, button#reset-btn {
+      background-color: white;
+      border: 2px solid #1a73e8;
+      color: #1a73e8;
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 10px 20px;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: background-color 0.3s, color 0.3s;
+      user-select: none;
+    }
+
+    button#edit-btn:hover, button#reset-btn:hover {
+      background-color: #1a73e8;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Calcetto Saponato Santa Giustina</h1>
+
+  <div id="btn-container">
+    <button id="edit-btn">Modifica</button>
+    <button id="reset-btn" style="display:none;">Reset Partite</button>
+  </div>
+
+  <form id="match-form">
+    <input type="text" id="team1" placeholder="Squadra Casa" required />
+    <input type="text" id="score1" placeholder="Gol Casa (numero o -)" required />
+    <input type="text" id="score2" placeholder="Gol Trasferta (numero o -)" required />
+    <input type="text" id="team2" placeholder="Squadra Trasferta" required />
+    <input type="time" id="match-time" required />
+    <button type="submit">Aggiungi Partita</button>
+  </form>
+
+  <h2>Classifica</h2>
+  <table id="classifica">
+    <thead>
+      <tr>
+        <th>Squadra</th>
+        <th>PG</th>
+        <th>Punti</th>
+        <th>GF</th>
+        <th>GS</th>
+        <th>Diff</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Tabellone Partite</h2>
+  <table id="match-table">
+    <thead>
+      <tr>
+        <th>Casa</th>
+        <th>Gol Casa</th>
+        <th>Gol Trasferta</th>
+        <th>Trasferta</th>
+        <th>Orario</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+  let partite = [];
+  const stats = {};
+  let isEditable = false;
+
+  // Carica dati da localStorage (come esempio, o può essere collegato a DB)
+  function caricaDati() {
+    const dati = localStorage.getItem('partite');
+    partite = dati ? JSON.parse(dati) : [];
+    aggiornaTabellone();
+    aggiornaClassifica();
+  }
+
+  // Salva dati in localStorage (puoi sostituire con DB)
+  function salvaDati() {
+    localStorage.setItem('partite', JSON.stringify(partite));
+  }
+
+  // Aggiorna la tabella partite
+  function aggiornaTabellone() {
+    const tbody = document.querySelector('#match-table tbody');
+    tbody.innerHTML = '';
+
+    partite.forEach(({team1, score1, score2, team2, time}, idx) => {
+      const tr = document.createElement('tr');
+
+      if(isEditable){
+        tr.innerHTML = `
+          <td contenteditable="true" data-index="${idx}" data-field="team1" class="editable">${team1}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="score1" class="editable">${score1}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="score2" class="editable">${score2}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="team2" class="editable">${team2}</td>
+          <td contenteditable="true" data-index="${idx}" data-field="time" class="editable">${time}</td>
+        `;
+      } else {
+        tr.innerHTML = `
+          <td>${team1}</td>
+          <td>${score1}</td>
+          <td>${score2}</td>
+          <td>${team2}</td>
+          <td>${time}</td>
+        `;
+      }
+
+      tbody.appendChild(tr);
+    });
+
+    if(isEditable){
+      document.querySelectorAll('td.editable').forEach(td => {
+        td.addEventListener('blur', aggiornaCampo);
+        td.addEventListener('keydown', e => {
+          if(e.key === 'Enter'){
+            e.preventDefault();
+            td.blur();
+          }
+        });
+      });
+    }
+  }
+
+  // Gestisce aggiornamento cella editabile
+  function aggiornaCampo(e){
+    const td = e.target;
+    const idx = td.getAttribute('data-index');
+    const field = td.getAttribute('data-field');
+    let val = td.innerText.trim();
+
+    if(field === "score1" || field === "score2"){
+      if(val !== '-' && !/^\d+$/.test(val)){
+        alert("Inserisci solo numeri interi positivi o '-' per partita non giocata");
+        td.innerText = partite[idx][field];
+        return;
+      }
+    }
+
+    if(field === "time"){
+      // opzionale: controllo formato orario? Lasciamo libero
+    }
+
+    partite[idx][field] = val;
+    aggiornaClassifica();
+    salvaDati();
+  }
+
+  // Aggiorna la classifica calcolando punti e gol
+  function aggiornaClassifica() {
+    // Reset stats
+    for(let key in stats){
+      delete stats[key];
+    }
+
+    partite.forEach(({team1, team2, score1, score2}) => {
+      if(!stats[team1]) stats[team1] = {punti:0, gf:0, gs:0, pg:0};
+      if(!stats[team2]) stats[team2] = {punti:0, gf:0, gs:0, pg:0};
+
+      // Se uno dei risultati è '-', partita non giocata
+      if(score1 === '-' || score2 === '-'){
+        // Non incremento PG né punti o gol
+        return;
+      }
+
+      const g1 = parseInt(score1);
+      const g2 = parseInt(score2);
+      if(isNaN(g1) || isNaN(g2)) return;
+
+      stats[team1].pg++;
+      stats[team2].pg++;
+      stats[team1].gf += g1;
+      stats[team2].gf += g2;
+      stats[team1].gs += g2;
+      stats[team2].gs += g1;
+
+      if(g1 > g2){
+        stats[team1].punti += 3;
+      } else if(g2 > g1){
+        stats[team2].punti += 3;
+      } else {
+        stats[team1].punti += 1;
+        stats[team2].punti += 1;
+      }
+    });
+
+    const classifica = Object.entries(stats).map(([squadra, dati]) => ({
+      squadra,
+      pg: dati.pg,
+      punti: dati.punti,
+      gf: dati.gf,
+      gs: dati.gs,
+      diff: dati.gf - dati.gs
+    })).sort((a,b) => b.punti - a.punti || b.diff - a.diff);
+
+    const tbody = document.querySelector('#classifica tbody');
+    tbody.innerHTML = '';
+    classifica.forEach(({squadra, pg, punti, gf, gs, diff}) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${squadra}</td>
+        <td>${pg}</td>
+        <td>${punti}</td>
+        <td>${gf}</td>
+        <td>${gs}</td>
+        <td>${diff}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Gestisce invio form aggiungi partita
+  document.querySelector('#match-form').addEventListener('submit', e => {
+    e.preventDefault();
+
+    const team1 = document.querySelector('#team1').value.trim();
+    const team2 = document.querySelector('#team2').value.trim();
+    const score1 = document.querySelector('#score1').value.trim();
+    const score2 = document.querySelector('#score2').value.trim();
+    const time = document.querySelector('#match-time').value;
+
+    // Validazione risultati
+    if(!team1 || !team2){
+      alert("Inserisci entrambe le squadre");
+      return;
+    }
+    if(!time){
+      alert("Inserisci l'orario");
+      return;
+    }
+    if(!(score1 === '-' || /^\d+$/.test(score1)) || !(score2 === '-' || /^\d+$/.test(score2))){
+      alert("I gol devono essere numeri interi positivi o '-'");
+      return;
+    }
+
+    partite.push({team1, score1, score2, team2, time});
+    salvaDati();
+    aggiornaTabellone();
+    aggiornaClassifica();
+
+    e.target.reset();
+  });
+
+  // Pulsante modifica (entra/esce modalità modifica)
+  document.querySelector('#edit-btn').addEventListener('click', () => {
+    if(!isEditable){
+      const pw = prompt("Inserisci password per modificare:");
+      if(pw === "paolo"){
+        isEditable = true;
+        document.querySelector('#match-form').style.display = "grid";
+        document.querySelector('#reset-btn').style.display = "inline-block";
+        document.querySelector('#edit-btn').textContent = "Esci Modifica";
+        aggiornaTabellone();
+      } else {
+        alert("Password errata!");
+      }
+    } else {
+      isEditable = false;
+      document.querySelector('#match-form').style.display = "none";
+      document.querySelector('#reset-btn').style.display = "none";
+      document.querySelector('#edit-btn').textContent = "Modifica";
+      aggiornaTabellone();
+    }
+  });
+
+  // Pulsante reset partite (azzera risultati)
+  document.querySelector('#reset-btn').addEventListener('click', () => {
+    if(confirm("Sei sicuro di resettare tutte le partite? I risultati saranno cancellati!")){
+      partite = partite.map(({team1, team2, time}) => ({
+        team1,
+        team2,
+        score1: '-',
+        score2: '-',
+        time
+      }));
+      salvaDati();
+      aggiornaTabellone();
+      aggiornaClassifica();
+    }
+  });
+
+  // Avvio
+  caricaDati();
+</script>
+
+</body>
+</html>
+
